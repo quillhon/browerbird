@@ -19,11 +19,13 @@ import android.util.Log;
 public class SyncServerThreadHandler extends SimpleChannelUpstreamHandler {
 	private static final String TAG = "SimpleChannel";
 
+	/*
 	private MainActivity mActivity;
 
 	public SyncServerThreadHandler(MainActivity activity) {
 		mActivity = activity;
 	}
+	*/
 
 	@Override
 	public void handleUpstream(ChannelHandlerContext ctx, ChannelEvent e)
@@ -34,12 +36,19 @@ public class SyncServerThreadHandler extends SimpleChannelUpstreamHandler {
 		}
 		super.handleUpstream(ctx, e);
 	}
+	
+	@Override
+    public void channelConnected(
+            ChannelHandlerContext ctx, ChannelStateEvent e) {
+		Log.i(TAG, "Connected to server");
+	}
 
 	@Override
 	public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
 		// Echo back the received object to the client.
+		Log.i(TAG, "recivce message");
 		ArrayList<Item> items = (ArrayList<Item>) e.getMessage();
-		mActivity.setItems(items);
+		//mActivity.setItems(items);
 	}
 
 	@Override

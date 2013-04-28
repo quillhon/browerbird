@@ -22,7 +22,6 @@ public class MainActivityHandler extends SimpleChannelUpstreamHandler {
 
 	public MainActivityHandler(MainActivity activity) {
 		mActivity = activity;
-
 	}
 
 	@Override
@@ -34,10 +33,17 @@ public class MainActivityHandler extends SimpleChannelUpstreamHandler {
 		}
 		super.handleUpstream(ctx, e);
 	}
+	
+	@Override
+    public void channelConnected(
+            ChannelHandlerContext ctx, ChannelStateEvent e) {
+		Log.i(TAG, "Connected to server");
+	}
 
 	@Override
 	public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
 		// Echo back the received object to the server.
+		Log.i(TAG, "Recevived message");
 		ArrayList<Item> items = (ArrayList<Item>) e.getMessage();
 		mActivity.setItems(items);
 	}
