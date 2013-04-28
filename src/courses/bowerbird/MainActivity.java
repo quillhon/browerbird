@@ -97,6 +97,7 @@ public class MainActivity extends SwipeListViewActivity {
 			break;
 		case R.id.action_sync:
 			Intent intent = new Intent(this, WiFiDirectActivity.class);
+			intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
 			startActivityForResult(intent, REQUEST_SYNC);
 			break;
 		default:
