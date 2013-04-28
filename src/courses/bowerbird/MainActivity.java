@@ -16,6 +16,8 @@ import org.jboss.netty.handler.codec.serialization.ClassResolvers;
 import org.jboss.netty.handler.codec.serialization.ObjectDecoder;
 import org.jboss.netty.handler.codec.serialization.ObjectEncoder;
 
+import com.androidsnippets.wordpress.swipetodelete.SwipeListViewActivity;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ContentValues;
@@ -23,13 +25,21 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Color;
 import android.net.wifi.p2p.WifiP2pInfo;
 import android.os.Bundle;
+import android.util.Log;
+import android.util.SparseBooleanArray;
+import android.view.ActionMode;
+import android.view.ContextMenu;
+import android.view.ContextMenu.ContextMenuInfo;
 import android.view.LayoutInflater;
 import android.view.Menu;
+import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ListAdapter;
 import android.widget.ListView;
 import android.widget.Toast;
 import courses.bowerbird.db.DBEntry;
@@ -37,7 +47,7 @@ import courses.bowerbird.db.DBHelper;
 import courses.bowerbird.models.Item;
 import courses.bowerbird.sync.SyncServerThread;
 
-public class MainActivity extends Activity {
+public class MainActivity extends SwipeListViewActivity {
 
 	public final static int REQUEST_SYNC = 1;
 	public final static int SEND_LIST = 2;
@@ -93,6 +103,26 @@ public class MainActivity extends Activity {
 			break;
 		}
 		return super.onMenuItemSelected(featureId, item);
+	}
+	
+	public void deleteItem(int id) {
+		SQLiteDatabase sqlConnection = null;
+
+		try {
+			sqlConnection = mDBHelper.getWritableDatabase();
+			String whereClause = DBEntry.Item._ID + "=?";
+			String[] whereArgs = new String[] {
+					Integer.toString(id)
+			};
+			
+			sqlConnection.delete(DBEntry.Item.TABLE_NAME, whereClause, whereArgs);
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			if (sqlConnection != null) {
+				sqlConnection.close();
+			}
+		}
 	}
 
 	public void initList() {
@@ -251,5 +281,26 @@ public class MainActivity extends Activity {
 	public void setItems(ArrayList<Item> items) {
 		mItems = items;
 		mItemListAdapter.notifyDataSetChanged();
+	}
+
+
+	@Override
+	public ListView getListView() {
+		return mItemList;
+	}
+
+
+	@Override
+	public void getSwipeItem(boolean isRight, int position) {
+		
+		Item item = mItems.get(position);
+		deleteItem(item.getId());
+		mItemListAdapter.notifyDataSetChanged();
+	}
+
+
+	@Override
+	public void onItemClickListener(ListAdapter adapter, int position) {
+		//Toast.makeText(this, "Single tap on item position " + position, Toast.LENGTH_SHORT).show();
 	}
 }
