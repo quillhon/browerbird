@@ -70,6 +70,7 @@ public class MainActivity extends ListActivity {
 		setListAdapter(mItemListAdapter);
 		initList();
 	}
+	
 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
