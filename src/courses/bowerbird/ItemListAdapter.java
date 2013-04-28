@@ -1,0 +1,71 @@
+package courses.bowerbird;
+
+import java.util.ArrayList;
+
+import courses.bowerbird.db.DBEntry;
+import courses.bowerbird.db.DBHelper;
+import courses.bowerbird.models.Item;
+import android.content.ContentValues;
+import android.content.Context;
+import android.database.sqlite.SQLiteDatabase;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.CompoundButton.OnCheckedChangeListener;
+import android.widget.EditText;
+import android.widget.TextView;
+
+public class ItemListAdapter extends ArrayAdapter<Item> {
+
+	private Context mContext;
+	private ArrayList<Item> mItems;
+	private DBHelper mDBHelper;
+
+	public ItemListAdapter(Context context, ArrayList<Item> objects) {
+		super(context, R.layout.layout_item_list, objects);
+		mContext = context;
+		mItems = objects;
+		mDBHelper = new DBHelper(context);
+	}
+
+	@Override
+	public View getView(int position, View convertView, ViewGroup parent) {
+		Item item = mItems.get(position);
+		if (convertView == null) {
+			LayoutInflater vi = (LayoutInflater) mContext
+					.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+			convertView = vi.inflate(R.layout.layout_item_list, null);
+		}
+		TextView name = (TextView) convertView.findViewById(R.id.name_text);
+		TextView quota = (TextView) convertView.findViewById(R.id.quota_text);
+		CheckBox finishBox = (CheckBox) convertView
+				.findViewById(R.id.finish_checkbox);
+		name.setText(item.getName());
+		quota.setText(Integer.toString(item.getQuota()));
+		finishBox.setTag(item);
+		finishBox.setOnCheckedChangeListener(new OnCheckedChangeListener() {
+
+			@Override
+			public void onCheckedChanged(CompoundButton buttonView,
+					boolean isChecked) {
+				Item i = (Item) buttonView.getTag();
+				SQLiteDatabase sqlconnection = mDBHelper.getWritableDatabase();
+				ContentValues values = new ContentValues();
+				String whereClause = DBEntry.Item._ID + "=?";
+				String[] whereArgs = new String[] { Integer.toString(i.getId()) };
+				if (isChecked) {
+					values.put(DBEntry.Item.COLUMN_IS_FINISHED, 1);
+				} else {
+					values.put(DBEntry.Item.COLUMN_IS_FINISHED, 0);
+				}
+				sqlconnection.update(DBEntry.Item.TABLE_NAME, values,
+						whereClause, whereArgs);
+				sqlconnection.close();
+			}
+		});
+		return convertView;
+	}
+}
