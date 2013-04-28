@@ -1,6 +1,5 @@
 package courses.bowerbird;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.concurrent.Executors;
@@ -12,14 +11,13 @@ import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.serialization.ClassResolvers;
 import org.jboss.netty.handler.codec.serialization.ObjectDecoder;
 import org.jboss.netty.handler.codec.serialization.ObjectEncoder;
 
+import android.app.Activity;
 import android.app.AlertDialog;
-import android.app.ListActivity;
 import android.content.ContentValues;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -27,25 +25,26 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.wifi.p2p.WifiP2pInfo;
 import android.os.Bundle;
-import android.os.Handler;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ListView;
+import android.widget.Toast;
 import courses.bowerbird.db.DBEntry;
 import courses.bowerbird.db.DBHelper;
 import courses.bowerbird.models.Item;
 import courses.bowerbird.sync.SyncServerThread;
-import courses.bowerbird.sync.SyncServerThreadHandler;
 
-public class MainActivity extends ListActivity {
+public class MainActivity extends Activity {
 
 	public final static int REQUEST_SYNC = 1;
 	public final static int SEND_LIST = 2;
 
 	private DBHelper mDBHelper;
 	private ArrayList<Item> mItems;
+	private ListView mItemList;
 	private ItemListAdapter mItemListAdapter;
 
 	private MainActivityHandler mHandler;
@@ -64,10 +63,11 @@ public class MainActivity extends ListActivity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
+		mItemList = (ListView) findViewById(R.id.item_list);
 		mDBHelper = new DBHelper(this);
 		mItems = new ArrayList<Item>();
 		mItemListAdapter = new ItemListAdapter(this, mItems);
-		setListAdapter(mItemListAdapter);
+		mItemList.setAdapter(mItemListAdapter);
 		initList();
 	}
 	
@@ -88,7 +88,6 @@ public class MainActivity extends ListActivity {
 		case R.id.action_sync:
 			Intent intent = new Intent(this, WiFiDirectActivity.class);
 			startActivityForResult(intent, REQUEST_SYNC);
-			startActivity(intent);
 			break;
 		default:
 			break;
@@ -174,74 +173,73 @@ public class MainActivity extends ListActivity {
 		case REQUEST_SYNC:
 			if (resultCode == RESULT_OK) {
 				int port = 1234;
-				final MainActivityHandler handler = new MainActivityHandler(
-						this);
-				if (mWifiP2pInfo.isGroupOwner) {
-					// Configure the server.
-					mServerBootstrap = new ServerBootstrap(
-							new NioServerSocketChannelFactory(
-									Executors.newCachedThreadPool(),
-									Executors.newCachedThreadPool()));
+				Bundle info = data.getExtras();
+				
+				Toast toast = new Toast(this);
+				String infoStr = "Owner ip: " + info.getString("owner_addr") + "\n"
+						+ "is Owner: " + info.getBoolean("is_owner");
+				toast.setText(infoStr);
+				toast.show();
 
-					// Set up the pipeline factory.
-					mServerBootstrap
-							.setPipelineFactory(new ChannelPipelineFactory() {
-								public ChannelPipeline getPipeline()
-										throws Exception {
-									return Channels
-											.pipeline(
-													new ObjectEncoder(),
-													new ObjectDecoder(
-															ClassResolvers
-																	.cacheDisabled(getClass()
-																			.getClassLoader())),
-													handler);
-								}
-							});
-
-					// Bind and start to accept incoming connections.
-					mChannel = mServerBootstrap
-							.bind(new InetSocketAddress(port));
+				if (info.getBoolean("is_owner")) {
+					runServer(port);
 				} else {
-					// Configure the client.
-					mClientBootstrap = new ClientBootstrap(
-							new NioClientSocketChannelFactory(
-									Executors.newCachedThreadPool(),
-									Executors.newCachedThreadPool()));
-
-					// Set up the pipeline factory.
-					mClientBootstrap
-							.setPipelineFactory(new ChannelPipelineFactory() {
-								public ChannelPipeline getPipeline()
-										throws Exception {
-									return Channels
-											.pipeline(
-													new ObjectEncoder(),
-													new ObjectDecoder(
-															ClassResolvers
-																	.cacheDisabled(getClass()
-																			.getClassLoader())),
-													handler);
-								}
-							});
-					mClientBootstrap.setOption("tcpNoDelay", true);
-					mClientBootstrap.setOption("keepAlive", true);
-
-					// Start the connection attempt.
-					mChannelFuture = mClientBootstrap
-							.connect(new InetSocketAddress(
-									mWifiP2pInfo.groupOwnerAddress, port));
-					mChannelFuture.awaitUninterruptibly();
-					mChannel = mChannelFuture.awaitUninterruptibly()
-							.getChannel();
+					runClient(info.getString("owner_addr"), port);
 				}
 				isSyncing = true;
 			}
+
 			break;
 
 		default:
 			break;
 		}
+	}
+
+	private void runServer(int port) {
+		final MainActivityHandler handler = new MainActivityHandler(this);
+		// Configure the server.
+		mServerBootstrap = new ServerBootstrap(
+				new NioServerSocketChannelFactory(
+						Executors.newCachedThreadPool(),
+						Executors.newCachedThreadPool()));
+
+		// Set up the pipeline factory.
+		mServerBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
+			public ChannelPipeline getPipeline() throws Exception {
+				return Channels.pipeline(
+						new ObjectEncoder(),
+						new ObjectDecoder(ClassResolvers
+								.cacheDisabled(getClass().getClassLoader())),
+						handler);
+			}
+		});
+
+		// Bind and start to accept incoming connections.
+		mChannel = mServerBootstrap.bind(new InetSocketAddress(port));
+	}
+
+	private void runClient(String addr, int port) {
+		final MainActivityHandler handler = new MainActivityHandler(this);
+		// Configure the server.
+		mServerBootstrap = new ServerBootstrap(
+				new NioServerSocketChannelFactory(
+						Executors.newCachedThreadPool(),
+						Executors.newCachedThreadPool()));
+
+		// Set up the pipeline factory.
+		mServerBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
+			public ChannelPipeline getPipeline() throws Exception {
+				return Channels.pipeline(
+						new ObjectEncoder(),
+						new ObjectDecoder(ClassResolvers
+								.cacheDisabled(getClass().getClassLoader())),
+						handler);
+			}
+		});
+
+		// Bind and start to accept incoming connections.
+		mChannel = mServerBootstrap.bind(new InetSocketAddress(port));
 	}
 
 	public void syncItems() {

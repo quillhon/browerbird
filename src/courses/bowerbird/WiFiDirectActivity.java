@@ -38,7 +38,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.Toast;
 import courses.bowerbird.DeviceListFragment.DeviceActionListener;
-import courses.bowerbird.sync.SyncServerThread;
 import courses.bowerbird.sync.WiFiDirectBroadcastReceiver;
 
 /**
@@ -48,7 +47,7 @@ import courses.bowerbird.sync.WiFiDirectBroadcastReceiver;
  * The application should also register a BroadcastReceiver for notification of
  * WiFi state related events.
  */
-public class WiFiDirectActivity extends Activity implements ConnectionInfoListener, ChannelListener, DeviceActionListener {
+public class WiFiDirectActivity extends Activity implements ChannelListener, DeviceActionListener, ConnectionInfoListener {
 
     public static final String TAG = "wifidirectdemo";
     private WifiP2pManager manager;
@@ -266,11 +265,14 @@ public class WiFiDirectActivity extends Activity implements ConnectionInfoListen
         }
     }
     
-
-	@Override
-	public void onConnectionInfoAvailable(WifiP2pInfo info) {
-		Intent intent = new Intent();
-		intent.putExtra("info", info);
-		finish();
-	}
+    @Override
+    public void onConnectionInfoAvailable(final WifiP2pInfo info) {
+        Bundle bundle = new Bundle();
+        bundle.putBoolean("is_owner", info.isGroupOwner);
+        bundle.putString("owner_addr", info.groupOwnerAddress.getHostAddress());
+        Intent intent = new Intent();
+        intent.putExtras(bundle);
+        setResult(Activity.RESULT_OK, intent);
+        //finish();
+    }
 }
