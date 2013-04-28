@@ -141,6 +141,16 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
             progressDialog.dismiss();
         }
         this.info = info;
+        
+        Bundle bundle = new Bundle();
+        bundle.putBoolean("isOwner", this.info.isGroupOwner);
+        bundle.putString("owner_addr", this.info.groupOwnerAddress.getHostAddress());
+        Intent intent = new Intent();
+        intent.putExtras(bundle);
+        getActivity().setResult(getActivity().RESULT_OK, intent);
+        getActivity().finish();
+        
+        /*
         this.getView().setVisibility(View.VISIBLE);
 
         // The owner IP is now known.
@@ -169,6 +179,7 @@ public class DeviceDetailFragment extends Fragment implements ConnectionInfoList
 
         // hide the connect button
         mContentView.findViewById(R.id.btn_connect).setVisibility(View.GONE);
+        */
     }
 
     /**

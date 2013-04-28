@@ -1,45 +1,43 @@
 package courses.bowerbird;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.concurrent.Executors;
+
+import org.jboss.netty.bootstrap.ClientBootstrap;
+import org.jboss.netty.bootstrap.ServerBootstrap;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
+import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
+import org.jboss.netty.handler.codec.serialization.ClassResolvers;
+import org.jboss.netty.handler.codec.serialization.ObjectDecoder;
+import org.jboss.netty.handler.codec.serialization.ObjectEncoder;
 
 import android.app.AlertDialog;
 import android.app.ListActivity;
 import android.content.ContentValues;
-import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.net.Uri;
 import android.net.wifi.p2p.WifiP2pInfo;
-import android.net.wifi.p2p.WifiP2pManager.ConnectionInfoListener;
-import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
-import android.os.Message;
-import android.text.style.UpdateAppearance;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
-import android.widget.TextView;
-import courses.bowerbird.DeviceDetailFragment.FileServerAsyncTask;
 import courses.bowerbird.db.DBEntry;
 import courses.bowerbird.db.DBHelper;
 import courses.bowerbird.models.Item;
 import courses.bowerbird.sync.SyncServerThread;
+import courses.bowerbird.sync.SyncServerThreadHandler;
 
 public class MainActivity extends ListActivity {
 
@@ -54,11 +52,10 @@ public class MainActivity extends ListActivity {
 	private SyncServerThread mItemSyncThread;
 
 	private WifiP2pInfo mWifiP2pInfo;
-
-	// Client input and output
-	Socket mSocket;
-	ObjectOutputStream mObjectOutput;
-	ObjectInputStream mObjectInput;
+	private ServerBootstrap mServerBootstrap;
+	private ClientBootstrap mClientBootstrap;
+	private ChannelFuture mChannelFuture;
+	private Channel mChannel;
 
 	private boolean isSyncing;
 
@@ -176,19 +173,66 @@ public class MainActivity extends ListActivity {
 		case REQUEST_SYNC:
 			if (resultCode == RESULT_OK) {
 				int port = 1234;
+				final MainActivityHandler handler = new MainActivityHandler(
+						this);
 				if (mWifiP2pInfo.isGroupOwner) {
-					mHandler = new MainActivityHandler(this);
-					mItemSyncThread = new SyncServerThread(this, port);
-					mItemSyncThread.start();
+					// Configure the server.
+					mServerBootstrap = new ServerBootstrap(
+							new NioServerSocketChannelFactory(
+									Executors.newCachedThreadPool(),
+									Executors.newCachedThreadPool()));
+
+					// Set up the pipeline factory.
+					mServerBootstrap
+							.setPipelineFactory(new ChannelPipelineFactory() {
+								public ChannelPipeline getPipeline()
+										throws Exception {
+									return Channels
+											.pipeline(
+													new ObjectEncoder(),
+													new ObjectDecoder(
+															ClassResolvers
+																	.cacheDisabled(getClass()
+																			.getClassLoader())),
+													handler);
+								}
+							});
+
+					// Bind and start to accept incoming connections.
+					mChannel = mServerBootstrap
+							.bind(new InetSocketAddress(port));
 				} else {
-					try {
-						mSocket = new Socket(mWifiP2pInfo.groupOwnerAddress,
-								port);
-						mObjectOutput = new ObjectOutputStream(
-								mSocket.getOutputStream());
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
+					// Configure the client.
+					mClientBootstrap = new ClientBootstrap(
+							new NioClientSocketChannelFactory(
+									Executors.newCachedThreadPool(),
+									Executors.newCachedThreadPool()));
+
+					// Set up the pipeline factory.
+					mClientBootstrap
+							.setPipelineFactory(new ChannelPipelineFactory() {
+								public ChannelPipeline getPipeline()
+										throws Exception {
+									return Channels
+											.pipeline(
+													new ObjectEncoder(),
+													new ObjectDecoder(
+															ClassResolvers
+																	.cacheDisabled(getClass()
+																			.getClassLoader())),
+													handler);
+								}
+							});
+					mClientBootstrap.setOption("tcpNoDelay", true);
+					mClientBootstrap.setOption("keepAlive", true);
+
+					// Start the connection attempt.
+					mChannelFuture = mClientBootstrap
+							.connect(new InetSocketAddress(
+									mWifiP2pInfo.groupOwnerAddress, port));
+					mChannelFuture.awaitUninterruptibly();
+					mChannel = mChannelFuture.awaitUninterruptibly()
+							.getChannel();
 				}
 				isSyncing = true;
 			}
@@ -201,20 +245,12 @@ public class MainActivity extends ListActivity {
 
 	public void syncItems() {
 		if (isSyncing) {
-			try {
-				mObjectOutput.writeObject(mItems);
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			mChannel.write(mItems);
 		}
 	}
 
 	public void setItems(ArrayList<Item> items) {
 		mItems = items;
 		mItemListAdapter.notifyDataSetChanged();
-	}
-
-	public Handler getHandler() {
-		return mHandler;
 	}
 }

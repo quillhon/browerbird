@@ -1,6 +1,7 @@
-package courses.bowerbird;
+package courses.bowerbird.sync;
 
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.jboss.netty.channel.ChannelEvent;
 import org.jboss.netty.channel.ChannelHandlerContext;
@@ -10,19 +11,18 @@ import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 
+import courses.bowerbird.MainActivity;
 import courses.bowerbird.models.Item;
 
 import android.util.Log;
 
-public class MainActivityHandler extends SimpleChannelUpstreamHandler {
-
+public class SyncServerThreadHandler extends SimpleChannelUpstreamHandler {
 	private static final String TAG = "SimpleChannel";
 
 	private MainActivity mActivity;
 
-	public MainActivityHandler(MainActivity activity) {
+	public SyncServerThreadHandler(MainActivity activity) {
 		mActivity = activity;
-
 	}
 
 	@Override
@@ -37,7 +37,7 @@ public class MainActivityHandler extends SimpleChannelUpstreamHandler {
 
 	@Override
 	public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
-		// Echo back the received object to the server.
+		// Echo back the received object to the client.
 		ArrayList<Item> items = (ArrayList<Item>) e.getMessage();
 		mActivity.setItems(items);
 	}
