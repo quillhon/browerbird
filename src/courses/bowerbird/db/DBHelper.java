@@ -8,11 +8,11 @@ public class DBHelper extends SQLiteOpenHelper {
 	public static final int DATABASE_VERSION = 1;
 	public static final String DATABASE_NAME = "Bowerbird.db";
 
-	public static final String TEXT_TYPE = " TEXT";
-	public static final String INT_TYPE = " INTEGER";
-	public static final String BOOL_TYPE = " INTEGER";
-	public static final String COMMA_SEP = ",";
-	public static final String SQL_CREATE_ITEM = 
+	private static final String TEXT_TYPE = " TEXT";
+	private static final String INT_TYPE = " INTEGER";
+	private static final String BOOL_TYPE = " INTEGER";
+	private static final String COMMA_SEP = ",";
+	private static final String SQL_CREATE_ITEM = 
 			"CREATE TABLE " + DBEntry.Item.TABLE_NAME + " ("
 			+ DBEntry.Item._ID + INT_TYPE + " PRIMARY KEY,"
 			+ DBEntry.Item.COLUMN_NAME + TEXT_TYPE + COMMA_SEP
@@ -20,7 +20,7 @@ public class DBHelper extends SQLiteOpenHelper {
 			+ DBEntry.Item.COLUMN_IS_FINISHED + BOOL_TYPE
 			+ ");";
 
-	public static final String SQL_DELETE_ITEM = "DROP TABLE IF EXISTS "
+	private static final String SQL_DELETE_ITEM = "DROP TABLE IF EXISTS "
 			+ DBEntry.Item.TABLE_NAME;
 
 	public DBHelper(Context context) {

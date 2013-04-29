@@ -11,5 +11,6 @@
         android:id="@+id/action_sync"
         android:orderInCategory="200"
         android:showAsAction="ifRoom"
+        android:icon="@drawable/social_group"
         android:title="@string/menu_sync" />
 </menu>

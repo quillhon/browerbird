@@ -16,6 +16,7 @@
 
 package courses.bowerbird;
 
+import android.app.ActionBar;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -79,6 +80,11 @@ public class WiFiDirectActivity extends Activity implements ChannelListener, Dev
 
         manager = (WifiP2pManager) getSystemService(Context.WIFI_P2P_SERVICE);
         channel = manager.initialize(this, getMainLooper(), null);
+        
+        ActionBar actionbar = getActionBar();
+        actionbar.setDisplayHomeAsUpEnabled(true);
+        actionbar.setIcon(R.drawable.social_group);
+        actionbar.setTitle("Synchronize");
     }
 
     /** register the BroadcastReceiver with the intent values to be matched */
@@ -163,6 +169,9 @@ public class WiFiDirectActivity extends Activity implements ChannelListener, Dev
                     }
                 });
                 return true;
+            case android.R.id.home:
+            	finish();
+            	return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
@@ -273,6 +282,6 @@ public class WiFiDirectActivity extends Activity implements ChannelListener, Dev
         Intent intent = new Intent();
         intent.putExtras(bundle);
         setResult(Activity.RESULT_OK, intent);
-        finish();
+        //finish();
     }
 }

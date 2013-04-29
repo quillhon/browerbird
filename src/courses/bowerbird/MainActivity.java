@@ -11,12 +11,12 @@ import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
-import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.serialization.ClassResolvers;
 import org.jboss.netty.handler.codec.serialization.ObjectDecoder;
 import org.jboss.netty.handler.codec.serialization.ObjectEncoder;
+
+import com.androidsnippets.wordpress.swipetodelete.SwipeListViewActivity;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -25,27 +25,29 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Color;
 import android.net.wifi.p2p.WifiP2pInfo;
-import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Handler;
 import android.util.Log;
+import android.util.SparseBooleanArray;
+import android.view.ActionMode;
+import android.view.ContextMenu;
+import android.view.ContextMenu.ContextMenuInfo;
 import android.view.LayoutInflater;
 import android.view.Menu;
+import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ListAdapter;
 import android.widget.ListView;
 import android.widget.Toast;
 import courses.bowerbird.db.DBEntry;
 import courses.bowerbird.db.DBHelper;
 import courses.bowerbird.models.Item;
-import courses.bowerbird.sync.SyncServiceClientHandler;
-import courses.bowerbird.sync.SyncServiceServerHandler;
+import courses.bowerbird.sync.SyncServerThread;
 
-public class MainActivity extends Activity {
-
-	public final static String TAG = "simpleList";
+public class MainActivity extends SwipeListViewActivity {
 
 	public final static int REQUEST_SYNC = 1;
 	public final static int SEND_LIST = 2;
@@ -56,15 +58,15 @@ public class MainActivity extends Activity {
 	private ItemListAdapter mItemListAdapter;
 
 	private MainActivityHandler mHandler;
-	private SimpleChannelUpstreamHandler mSyncHandler;
-	private int mPort = 8988;
+	private SyncServerThread mItemSyncThread;
 
+	private WifiP2pInfo mWifiP2pInfo;
 	private ServerBootstrap mServerBootstrap;
 	private ClientBootstrap mClientBootstrap;
 	private ChannelFuture mChannelFuture;
 	private Channel mChannel;
 
-	private boolean mIsSyncing;
+	private boolean isSyncing;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -78,6 +80,7 @@ public class MainActivity extends Activity {
 		mItemList.setAdapter(mItemListAdapter);
 		initList();
 	}
+	
 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
@@ -93,15 +96,34 @@ public class MainActivity extends Activity {
 			showCreateItemDialog();
 			break;
 		case R.id.action_sync:
-			// Intent intent = new Intent(this, WiFiDirectActivity.class);
-			Intent intent = new Intent();
-			intent.setClass(this, WiFiDirectActivity.class);
+			Intent intent = new Intent(this, WiFiDirectActivity.class);
+			intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
 			startActivityForResult(intent, REQUEST_SYNC);
 			break;
 		default:
 			break;
 		}
 		return super.onMenuItemSelected(featureId, item);
+	}
+	
+	public void deleteItem(int id) {
+		SQLiteDatabase sqlConnection = null;
+
+		try {
+			sqlConnection = mDBHelper.getWritableDatabase();
+			String whereClause = DBEntry.Item._ID + "=?";
+			String[] whereArgs = new String[] {
+					Integer.toString(id)
+			};
+			
+			sqlConnection.delete(DBEntry.Item.TABLE_NAME, whereClause, whereArgs);
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			if (sqlConnection != null) {
+				sqlConnection.close();
+			}
+		}
 	}
 
 	public void initList() {
@@ -112,8 +134,9 @@ public class MainActivity extends Activity {
 			String[] columns = new String[] { DBEntry.Item._ID,
 					DBEntry.Item.COLUMN_NAME, DBEntry.Item.COLUMN_QUOTA,
 					DBEntry.Item.COLUMN_IS_FINISHED };
+			String selection = DBEntry.Item.COLUMN_IS_FINISHED + "=0";
 			Cursor cursor = sqlConnection.query(DBEntry.Item.TABLE_NAME,
-					columns, null, null, null, null, null);
+					columns, selection, null, null, null, null);
 			if (cursor.moveToFirst()) {
 				do {
 					Item item = new Item();
@@ -180,160 +203,105 @@ public class MainActivity extends Activity {
 		switch (requestCode) {
 		case REQUEST_SYNC:
 			if (resultCode == RESULT_OK) {
+				int port = 1234;
 				Bundle info = data.getExtras();
+				
+				Toast toast = new Toast(this);
+				String infoStr = "Owner ip: " + info.getString("owner_addr") + "\n"
+						+ "is Owner: " + info.getBoolean("is_owner");
+				toast.setText(infoStr);
+				toast.show();
 
-				String infoStr = "Owner ip: " + info.getString("owner_addr")
-						+ "\n" + "is Owner: " + info.getBoolean("is_owner");
-				Toast.makeText(this, infoStr, Toast.LENGTH_LONG).show();
-
-				mHandler = new MainActivityHandler(this);
 				if (info.getBoolean("is_owner")) {
-					mSyncHandler = new SyncServiceServerHandler(this);
-					new initServerTask().execute(mPort);
+					runServer(port);
 				} else {
-					mSyncHandler = new SyncServiceClientHandler(this);
-					new initClientTask().execute(info.getString("owner_addr"),
-							Integer.toString(mPort));
+					runClient(info.getString("owner_addr"), port);
 				}
+				isSyncing = true;
 			}
+
 			break;
+
 		default:
 			break;
 		}
 	}
 
-	private class initServerTask extends AsyncTask<Integer, Void, Void> {
+	private void runServer(int port) {
+		final MainActivityHandler handler = new MainActivityHandler(this);
+		// Configure the server.
+		mServerBootstrap = new ServerBootstrap(
+				new NioServerSocketChannelFactory(
+						Executors.newCachedThreadPool(),
+						Executors.newCachedThreadPool()));
 
-		@Override
-		protected Void doInBackground(Integer... port) {
-			// Configure the server.
-			mServerBootstrap = new ServerBootstrap(
-					new NioServerSocketChannelFactory(
-							Executors.newCachedThreadPool(),
-							Executors.newCachedThreadPool()));
+		// Set up the pipeline factory.
+		mServerBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
+			public ChannelPipeline getPipeline() throws Exception {
+				return Channels.pipeline(
+						new ObjectEncoder(),
+						new ObjectDecoder(ClassResolvers
+								.cacheDisabled(getClass().getClassLoader())),
+						handler);
+			}
+		});
 
-			// Set up the pipeline factory.
-			mServerBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
-				public ChannelPipeline getPipeline() throws Exception {
-					return Channels
-							.pipeline(
-									new ObjectEncoder(),
-									new ObjectDecoder(ClassResolvers
-											.cacheDisabled(getClass()
-													.getClassLoader())),
-									mSyncHandler);
-				}
-			});
-
-			// Bind and start to accept incoming connections.
-			mServerBootstrap.bind(new InetSocketAddress(port[0]));
-
-			return null;
-		}
-
+		// Bind and start to accept incoming connections.
+		mChannel = mServerBootstrap.bind(new InetSocketAddress(port));
 	}
 
-	private class initClientTask extends AsyncTask<String, Void, Void> {
+	private void runClient(String addr, int port) {
+		final MainActivityHandler handler = new MainActivityHandler(this);
+		// Configure the server.
+		mServerBootstrap = new ServerBootstrap(
+				new NioServerSocketChannelFactory(
+						Executors.newCachedThreadPool(),
+						Executors.newCachedThreadPool()));
 
-		@Override
-		protected Void doInBackground(String... params) {
+		// Set up the pipeline factory.
+		mServerBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
+			public ChannelPipeline getPipeline() throws Exception {
+				return Channels.pipeline(
+						new ObjectEncoder(),
+						new ObjectDecoder(ClassResolvers
+								.cacheDisabled(getClass().getClassLoader())),
+						handler);
+			}
+		});
 
-			mClientBootstrap = new ClientBootstrap(
-					new NioClientSocketChannelFactory(
-							Executors.newCachedThreadPool(),
-							Executors.newCachedThreadPool()));
-
-			// Set up the pipeline factory.
-			mClientBootstrap.setPipelineFactory(new ChannelPipelineFactory() {
-				public ChannelPipeline getPipeline() throws Exception {
-					return Channels
-							.pipeline(
-									new ObjectEncoder(),
-									new ObjectDecoder(ClassResolvers
-											.cacheDisabled(getClass()
-													.getClassLoader())),
-									mSyncHandler);
-				}
-			});
-			mClientBootstrap.setOption("tcpNoDelay", true);
-			mClientBootstrap.setOption("keepAlive", true);
-
-			// Start the connection attempt.
-			mChannelFuture = mClientBootstrap.connect(new InetSocketAddress(
-					params[0], Integer.parseInt(params[1])));
-			mChannelFuture.awaitUninterruptibly();
-			mChannel = mChannelFuture.awaitUninterruptibly().getChannel();
-
-			mIsSyncing = true;
-			
-			syncItems();
-
-			return null;
-		}
-
+		// Bind and start to accept incoming connections.
+		mChannel = mServerBootstrap.bind(new InetSocketAddress(port));
 	}
 
 	public void syncItems() {
-		if (mIsSyncing) {
+		if (isSyncing) {
 			mChannel.write(mItems);
 		}
 	}
 
 	public void setItems(ArrayList<Item> items) {
-		Log.i(TAG, "Update list");
-		mItems.clear();
-		for (int i = 0; i < items.size(); ++i) {
-			mItems.add(items.get(i));
-		}
-		clearDatabase();
+		mItems = items;
 		mItemListAdapter.notifyDataSetChanged();
 	}
 
-	private void clearDatabase() {
-		SQLiteDatabase sqlConnection = null;
 
-		try {
-			sqlConnection = mDBHelper.getWritableDatabase();
-			sqlConnection.execSQL(DBHelper.SQL_DELETE_ITEM);
-		} catch (Exception e) {
-			// TODO: handle exception
-		} finally {
-			if (sqlConnection != null) {
-				sqlConnection.close();
-			}
-		}
+	@Override
+	public ListView getListView() {
+		return mItemList;
 	}
 
-	private void writeItemsToDatabase(ArrayList<Item> items) {
 
-		SQLiteDatabase sqlConnection = null;
-
-		try {
-			sqlConnection = mDBHelper.getWritableDatabase();
-			for (int i = 0; i < items.size(); ++i) {
-				ContentValues values = new ContentValues();
-				values.put(DBEntry.Item._ID, items.get(i).getId());
-				values.put(DBEntry.Item.COLUMN_NAME, items.get(i).getName());
-				values.put(DBEntry.Item.COLUMN_QUOTA, items.get(i).getQuota());
-				int isFinished = items.get(i).isFinsihed() == true ? 1 : 0;  
-				values.put(DBEntry.Item.COLUMN_IS_FINISHED, isFinished);
-				sqlConnection.insert(DBEntry.Item.TABLE_NAME, null, values);
-			}
-		} catch (Exception e) {
-			// TODO: handle exception
-		} finally {
-			if (sqlConnection != null) {
-				sqlConnection.close();
-			}
-		}
+	@Override
+	public void getSwipeItem(boolean isRight, int position) {
+		
+		Item item = mItems.get(position);
+		deleteItem(item.getId());
+		mItemListAdapter.notifyDataSetChanged();
 	}
 
-	public Handler getHandler() {
-		return mHandler;
-	}
 
-	public void setChannel(Channel channel) {
-		mChannel = channel;
-		mIsSyncing = true;
+	@Override
+	public void onItemClickListener(ListAdapter adapter, int position) {
+		//Toast.makeText(this, "Single tap on item position " + position, Toast.LENGTH_SHORT).show();
 	}
 }
