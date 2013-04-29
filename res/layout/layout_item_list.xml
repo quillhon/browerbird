@@ -22,7 +22,6 @@
         android:layout_toRightOf="@+id/finish_checkbox"
         android:textColor="#040404"
         android:textSize="25dip"
-        android:textStyle="bold"
         android:layout_centerVertical="true"
         android:typeface="sans" />
 

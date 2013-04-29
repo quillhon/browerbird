@@ -8,6 +8,7 @@ import courses.bowerbird.models.Item;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Paint;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -39,13 +40,16 @@ public class ItemListAdapter extends ArrayAdapter<Item> {
 					.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 			convertView = vi.inflate(R.layout.layout_item_list, null);
 		}
-		TextView name = (TextView) convertView.findViewById(R.id.name_text);
+		final TextView name = (TextView) convertView.findViewById(R.id.name_text);
 		TextView quota = (TextView) convertView.findViewById(R.id.quota_text);
 		CheckBox finishBox = (CheckBox) convertView
 				.findViewById(R.id.finish_checkbox);
 		name.setText(item.getName());
+		if (item.isFinsihed())
+			name.setPaintFlags(name.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
 		quota.setText(Integer.toString(item.getQuota()));
 		finishBox.setTag(item);
+		finishBox.setChecked(item.isFinsihed());
 		finishBox.setOnCheckedChangeListener(new OnCheckedChangeListener() {
 
 			@Override
@@ -58,8 +62,10 @@ public class ItemListAdapter extends ArrayAdapter<Item> {
 				String[] whereArgs = new String[] { Integer.toString(i.getId()) };
 				if (isChecked) {
 					values.put(DBEntry.Item.COLUMN_IS_FINISHED, 1);
+					name.setPaintFlags(name.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
 				} else {
 					values.put(DBEntry.Item.COLUMN_IS_FINISHED, 0);
+					name.setPaintFlags( name.getPaintFlags() & (~ Paint.STRIKE_THRU_TEXT_FLAG));
 				}
 				sqlconnection.update(DBEntry.Item.TABLE_NAME, values,
 						whereClause, whereArgs);

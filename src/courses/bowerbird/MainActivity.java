@@ -37,7 +37,6 @@ import android.widget.ListAdapter;
 import android.widget.ListView;
 import android.widget.Toast;
 
-import com.androidsnippets.wordpress.swipetodelete.SwipeListViewActivity;
 
 import courses.bowerbird.db.DBEntry;
 import courses.bowerbird.db.DBHelper;
@@ -372,6 +371,7 @@ public class MainActivity extends SwipeListViewActivity {
 		
 		Item item = mItems.get(position);
 		deleteItem(item.getId());
+		mItems.remove(position);
 		mItemListAdapter.notifyDataSetChanged();
 	}
 

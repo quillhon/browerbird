@@ -1,4 +1,4 @@
-package com.androidsnippets.wordpress.swipetodelete;
+package courses.bowerbird;
 
 import android.app.Activity;
 import android.os.Bundle;
