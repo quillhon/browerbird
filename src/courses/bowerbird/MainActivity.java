@@ -11,6 +11,7 @@ import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.serialization.ClassResolvers;
@@ -27,6 +28,7 @@ import android.database.sqlite.SQLiteDatabase;
 import android.net.wifi.p2p.WifiP2pInfo;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -38,12 +40,13 @@ import android.widget.Toast;
 import courses.bowerbird.db.DBEntry;
 import courses.bowerbird.db.DBHelper;
 import courses.bowerbird.models.Item;
-import courses.bowerbird.sync.SyncServerThread;
+import courses.bowerbird.sync.SyncServiceClientHandler;
+import courses.bowerbird.sync.SyncServiceServerHandler;
 
 public class MainActivity extends Activity {
 
 	public final static String TAG = "simpleList";
-	
+
 	public final static int REQUEST_SYNC = 1;
 	public final static int SEND_LIST = 2;
 
@@ -53,9 +56,9 @@ public class MainActivity extends Activity {
 	private ItemListAdapter mItemListAdapter;
 
 	private MainActivityHandler mHandler;
+	private SimpleChannelUpstreamHandler mSyncHandler;
 	private int mPort = 8988;
 
-	private WifiP2pInfo mWifiP2pInfo;
 	private ServerBootstrap mServerBootstrap;
 	private ClientBootstrap mClientBootstrap;
 	private ChannelFuture mChannelFuture;
@@ -75,7 +78,6 @@ public class MainActivity extends Activity {
 		mItemList.setAdapter(mItemListAdapter);
 		initList();
 	}
-	
 
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
@@ -110,9 +112,8 @@ public class MainActivity extends Activity {
 			String[] columns = new String[] { DBEntry.Item._ID,
 					DBEntry.Item.COLUMN_NAME, DBEntry.Item.COLUMN_QUOTA,
 					DBEntry.Item.COLUMN_IS_FINISHED };
-			String selection = DBEntry.Item.COLUMN_IS_FINISHED + "=0";
 			Cursor cursor = sqlConnection.query(DBEntry.Item.TABLE_NAME,
-					columns, selection, null, null, null, null);
+					columns, null, null, null, null, null);
 			if (cursor.moveToFirst()) {
 				do {
 					Item item = new Item();
@@ -187,8 +188,10 @@ public class MainActivity extends Activity {
 
 				mHandler = new MainActivityHandler(this);
 				if (info.getBoolean("is_owner")) {
+					mSyncHandler = new SyncServiceServerHandler(this);
 					new initServerTask().execute(mPort);
 				} else {
+					mSyncHandler = new SyncServiceClientHandler(this);
 					new initClientTask().execute(info.getString("owner_addr"),
 							Integer.toString(mPort));
 				}
@@ -218,14 +221,12 @@ public class MainActivity extends Activity {
 									new ObjectDecoder(ClassResolvers
 											.cacheDisabled(getClass()
 													.getClassLoader())),
-									mHandler);
+									mSyncHandler);
 				}
 			});
 
 			// Bind and start to accept incoming connections.
-			mChannel = mServerBootstrap.bind(new InetSocketAddress(port[0]));
-			
-			mIsSyncing = true;
+			mServerBootstrap.bind(new InetSocketAddress(port[0]));
 
 			return null;
 		}
@@ -251,7 +252,7 @@ public class MainActivity extends Activity {
 									new ObjectDecoder(ClassResolvers
 											.cacheDisabled(getClass()
 													.getClassLoader())),
-									mHandler);
+									mSyncHandler);
 				}
 			});
 			mClientBootstrap.setOption("tcpNoDelay", true);
@@ -262,8 +263,10 @@ public class MainActivity extends Activity {
 					params[0], Integer.parseInt(params[1])));
 			mChannelFuture.awaitUninterruptibly();
 			mChannel = mChannelFuture.awaitUninterruptibly().getChannel();
-			
+
 			mIsSyncing = true;
+			
+			syncItems();
 
 			return null;
 		}
@@ -278,7 +281,59 @@ public class MainActivity extends Activity {
 
 	public void setItems(ArrayList<Item> items) {
 		Log.i(TAG, "Update list");
-		mItems = items;
+		mItems.clear();
+		for (int i = 0; i < items.size(); ++i) {
+			mItems.add(items.get(i));
+		}
+		clearDatabase();
 		mItemListAdapter.notifyDataSetChanged();
+	}
+
+	private void clearDatabase() {
+		SQLiteDatabase sqlConnection = null;
+
+		try {
+			sqlConnection = mDBHelper.getWritableDatabase();
+			sqlConnection.execSQL(DBHelper.SQL_DELETE_ITEM);
+		} catch (Exception e) {
+			// TODO: handle exception
+		} finally {
+			if (sqlConnection != null) {
+				sqlConnection.close();
+			}
+		}
+	}
+
+	private void writeItemsToDatabase(ArrayList<Item> items) {
+
+		SQLiteDatabase sqlConnection = null;
+
+		try {
+			sqlConnection = mDBHelper.getWritableDatabase();
+			for (int i = 0; i < items.size(); ++i) {
+				ContentValues values = new ContentValues();
+				values.put(DBEntry.Item._ID, items.get(i).getId());
+				values.put(DBEntry.Item.COLUMN_NAME, items.get(i).getName());
+				values.put(DBEntry.Item.COLUMN_QUOTA, items.get(i).getQuota());
+				int isFinished = items.get(i).isFinsihed() == true ? 1 : 0;  
+				values.put(DBEntry.Item.COLUMN_IS_FINISHED, isFinished);
+				sqlConnection.insert(DBEntry.Item.TABLE_NAME, null, values);
+			}
+		} catch (Exception e) {
+			// TODO: handle exception
+		} finally {
+			if (sqlConnection != null) {
+				sqlConnection.close();
+			}
+		}
+	}
+
+	public Handler getHandler() {
+		return mHandler;
+	}
+
+	public void setChannel(Channel channel) {
+		mChannel = channel;
+		mIsSyncing = true;
 	}
 }

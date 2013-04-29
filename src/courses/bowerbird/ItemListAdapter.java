@@ -45,6 +45,7 @@ public class ItemListAdapter extends ArrayAdapter<Item> {
 				.findViewById(R.id.finish_checkbox);
 		name.setText(item.getName());
 		quota.setText(Integer.toString(item.getQuota()));
+		finishBox.setChecked(item.isFinsihed());
 		finishBox.setTag(item);
 		finishBox.setOnCheckedChangeListener(new OnCheckedChangeListener() {
 
