@@ -2,49 +2,48 @@ package courses.bowerbird;
 
 import java.util.ArrayList;
 
+import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelEvent;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelState;
 import org.jboss.netty.channel.ChannelStateEvent;
 import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 
+import android.os.Handler;
+import android.os.Message;
+import android.util.Log;
 import courses.bowerbird.models.Item;
 
-import android.util.Log;
+public class MainActivityHandler extends Handler {
 
-public class MainActivityHandler extends SimpleChannelUpstreamHandler {
+	public static final String TAG = "SimpleChannel";
 
-	private static final String TAG = "SimpleChannel";
+	public static final int UPDATE_LIST = 1;
+	public static final int SET_CHANNEL = 2;
 
 	private MainActivity mActivity;
 
 	public MainActivityHandler(MainActivity activity) {
 		mActivity = activity;
-
 	}
 
 	@Override
-	public void handleUpstream(ChannelHandlerContext ctx, ChannelEvent e)
-			throws Exception {
-		if (e instanceof ChannelStateEvent
-				&& ((ChannelStateEvent) e).getState() != ChannelState.INTEREST_OPS) {
-			Log.i(TAG, e.toString());
+	public void handleMessage(Message msg) {
+		super.handleMessage(msg);
+		switch (msg.what) {
+		case UPDATE_LIST:
+			ArrayList<Item> items = (ArrayList<Item>) msg.obj;
+			mActivity.setItems(items);
+			break;
+		case SET_CHANNEL:
+			Channel channel = (Channel) msg.obj;
+			mActivity.setChannel(channel);
+			break;
+		default:
+			break;
 		}
-		super.handleUpstream(ctx, e);
+
 	}
 
-	@Override
-	public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
-		// Echo back the received object to the server.
-		ArrayList<Item> items = (ArrayList<Item>) e.getMessage();
-		mActivity.setItems(items);
-	}
-
-	@Override
-	public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) {
-		Log.w(TAG, "Unexpected exception from downstream.", e.getCause());
-		e.getChannel().close();
-	}
 }
