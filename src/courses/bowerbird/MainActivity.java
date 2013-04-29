@@ -202,15 +202,15 @@ public class MainActivity extends SwipeListViewActivity {
 			if (resultCode == RESULT_OK) {
 				Bundle info = data.getExtras();
 				
-				String infoStr = "Owner ip: " + info.getString("owner_addr")
-						+ "\n" + "is Owner: " + info.getBoolean("is_owner");
-				Toast.makeText(this, infoStr, Toast.LENGTH_LONG).show();
-
 				mHandler = new MainActivityHandler(this);
 				if (info.getBoolean("is_owner")) {
+					String infoStr = "Starting server...";
+					Toast.makeText(this, infoStr, Toast.LENGTH_LONG).show();
 					mSyncHandler = new SyncServiceServerHandler(this);
 					new initServerTask().execute(mPort);
 				} else {
+					String infoStr = "Starting client...";
+					Toast.makeText(this, infoStr, Toast.LENGTH_LONG).show();
 					mSyncHandler = new SyncServiceClientHandler(this);
 					new initClientTask().execute(info.getString("owner_addr"),
 							Integer.toString(mPort));
@@ -297,6 +297,7 @@ public class MainActivity extends SwipeListViewActivity {
 
 	public void syncItems() {
 		if (mIsSyncing) {
+			initList();
 			mChannel.write(mItems);
 		}
 	}
@@ -317,7 +318,7 @@ public class MainActivity extends SwipeListViewActivity {
 
 		try {
 			sqlConnection = mDBHelper.getWritableDatabase();
-			//sqlConnection.execSQL(DBHelper.SQL_DELETE_ITEM);
+			sqlConnection.execSQL("DELETE FROM " + DBEntry.Item.TABLE_NAME);
 		} catch (Exception e) {
 			// TODO: handle exception
 		} finally {
@@ -368,10 +369,10 @@ public class MainActivity extends SwipeListViewActivity {
 
 	@Override
 	public void getSwipeItem(boolean isRight, int position) {
-		
 		Item item = mItems.get(position);
 		deleteItem(item.getId());
 		mItems.remove(position);
+		syncItems();
 		mItemListAdapter.notifyDataSetChanged();
 	}
 
