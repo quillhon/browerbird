@@ -296,7 +296,6 @@ public class MainActivity extends SwipeListViewActivity {
 
 	}
 
-
 	public void syncItems() {
 		if (mIsSyncing) {
 			mChannel.write(mItems);
@@ -310,8 +309,10 @@ public class MainActivity extends SwipeListViewActivity {
 			mItems.add(items.get(i));
 		}
 		clearDatabase();
+		writeItemsToDatabase(items);
 		mItemListAdapter.notifyDataSetChanged();
 	}
+	
 	private void clearDatabase() {
 		SQLiteDatabase sqlConnection = null;
 

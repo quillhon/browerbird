@@ -20,13 +20,13 @@ import android.widget.TextView;
 
 public class ItemListAdapter extends ArrayAdapter<Item> {
 
-	private Context mContext;
+	private MainActivity mActivity;
 	private ArrayList<Item> mItems;
 	private DBHelper mDBHelper;
 
-	public ItemListAdapter(Context context, ArrayList<Item> objects) {
+	public ItemListAdapter(MainActivity context, ArrayList<Item> objects) {
 		super(context, R.layout.layout_item_list, objects);
-		mContext = context;
+		mActivity = context;
 		mItems = objects;
 		mDBHelper = new DBHelper(context);
 	}
@@ -35,7 +35,7 @@ public class ItemListAdapter extends ArrayAdapter<Item> {
 	public View getView(int position, View convertView, ViewGroup parent) {
 		Item item = mItems.get(position);
 		if (convertView == null) {
-			LayoutInflater vi = (LayoutInflater) mContext
+			LayoutInflater vi = (LayoutInflater) mActivity
 					.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 			convertView = vi.inflate(R.layout.layout_item_list, null);
 		}
@@ -64,6 +64,8 @@ public class ItemListAdapter extends ArrayAdapter<Item> {
 				sqlconnection.update(DBEntry.Item.TABLE_NAME, values,
 						whereClause, whereArgs);
 				sqlconnection.close();
+				
+				mActivity.syncItems();
 			}
 		});
 		return convertView;

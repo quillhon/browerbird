@@ -282,6 +282,6 @@ public class WiFiDirectActivity extends Activity implements ChannelListener, Dev
         Intent intent = new Intent();
         intent.putExtras(bundle);
         setResult(Activity.RESULT_OK, intent);
-        //finish();
+        finish();
     }
 }
